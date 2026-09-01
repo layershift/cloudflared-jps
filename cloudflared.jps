@@ -7,11 +7,11 @@ description:
   short: Cloudflared tunnel client
 logo: cloudflared.png
 categories:
- - apps/others
+  - apps/others
 
 targetNodes:
   nodeType:
-  - "*"
+    - "*"
 
 onInstall:
   deployRPM:
@@ -21,7 +21,7 @@ onAfterRedeployContainer:
   - forEach(event.response.responses):
       deployRPM:
         nodeId: ${@i.nodeid}
-        
+
 onAfterScaleOut:
   - forEach(event.response.nodes):
       deployRPM:
@@ -33,15 +33,16 @@ actions:
   deployRPM:
     user: root
     cmd[${this.nodeId}]:
-        - yum -q install yum-utils -y
-        - yum -q update -y
-        - yum-config-manager --add-repo https://pkg.cloudflare.com/cloudflared-ascii.repo
-        - yum -q install cloudflared -y
-        - echo -e "Cmnd_Alias CLOUDFLARED = /usr/local/bin/cloudflared * \n\n%ssh-access ALL = NOPASSWD:CLOUDFLARED" | tee /etc/sudoers.d/cloudflared
+      - curl -fsSL https://pkg.cloudflare.com/cloudflared-ascii.repo -o /etc/yum.repos.d/cloudflared.repo
+      - rpm -q cloudflared >/dev/null 2>&1 || yum -q install cloudflared -y
+      - 'echo -e "Cmnd_Alias CLOUDFLARED = /usr/bin/cloudflared, /usr/local/bin/cloudflared\nALL ALL = (ALL) NOPASSWD: CLOUDFLARED" | tee /etc/sudoers.d/cloudflared >/dev/null'
+      - chmod 0440 /etc/sudoers.d/cloudflared
+      - visudo -cf /etc/sudoers.d/cloudflared || rm -f /etc/sudoers.d/cloudflared
 
   removeRPM:
     user: root
-    cmd[${targetNodes.nodeGroup}]:
-        - yum -q autoremove cloudflared -y
-        - rm -f /etc/yum.repos.d/cloudflared-ascii.repo
-        - rm -f /etc/sudoers.d/cloudflared
+    cmd[*]:
+      - cloudflared service uninstall >/dev/null 2>&1 || true
+      - yum -q remove cloudflared -y
+      - rm -f /etc/yum.repos.d/cloudflared.repo
+      - rm -f /etc/sudoers.d/cloudflared
